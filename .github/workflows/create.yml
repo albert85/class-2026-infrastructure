@@ -10,6 +10,8 @@ jobs:
     terraform:
         name: 'Terraform Apply'
         runs-on: ubuntu-latest
+        env:
+            DESTROY: ${{ secrets.DESTROY }}
 
         steps:
             - name: Checkout Repository
@@ -44,6 +46,6 @@ jobs:
               run: terraform apply -var-file="dev.tfvars" -auto-approve
             
             - name: Terraform Destroy
-              if: ${{ secrets.DESTROY == 'true' }}
+              if: ${{ env.DESTROY == 'true' }}
               working-directory: terraform
               run: terraform destroy -var-file="dev.tfvars" -auto-approve
