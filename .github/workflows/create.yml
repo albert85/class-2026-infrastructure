@@ -42,3 +42,8 @@ jobs:
             - name: Terraform Apply
               working-directory: terraform
               run: terraform apply -var-file="dev.tfvars" -auto-approve
+            
+            - name: Terraform Destroy
+              if: ${{ secrets.DESTROY == 'true' }}
+              working-directory: terraform
+              run: terraform destroy -var-file="dev.tfvars" -auto-approve
