@@ -44,8 +44,75 @@ jobs:
             - name: Terraform Apply
               working-directory: terraform
               run: terraform apply -var-file="dev.tfvars" -auto-approve
-            
+           
+            - name: Get EC2 IP
+              id: tfoutput
+              working-directory: terraform
+              run: |
+                echo "IP=$(terraform output -raw instance_public_ip)" >> $GITHUB_ENV
+
+              # ------------------------
+              # Setup SSH
+              # ------------------------
+            - name: Setup SSH Key
+              run: |
+                mkdir -p ~/.ssh
+                echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/key.pem
+                chmod 600 ~/.ssh/key.pem
+
+            # ------------------------
+            # Install Ansible
+            # ------------------------
+            - name: Install Ansible
+              run: sudo apt install ansible -y
+
+            - name: Install CIS Roles
+              working-directory: ansible
+              run: ansible-galaxy install -r requirements.yml
+
+            # ------------------------
+            # Run CIS Hardening
+            # ------------------------
+            - name: Run Hardening
+              working-directory: ansible
+              run: |
+                echo "[servers]" > inventory.ini
+                echo "$IP ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/key.pem" >> inventory.ini
+                ansible-playbook -i inventory.ini site.yml
+
+            # ------------------------
+            # Install OpenSCAP on EC2
+            # ------------------------
+            - name: Install OpenSCAP
+              run: |
+                ssh -i ~/.ssh/key.pem ubuntu@$IP \
+                "sudo apt update && sudo apt install openscap-scanner -y"
+
+            # ------------------------
+            # Run Compliance Scan
+            # ------------------------
+            - name: Run CIS Scan
+              run: |
+                ssh -i ~/.ssh/key.pem ubuntu@$IP \
+                "sudo oscap xccdf eval \
+                --profile xccdf_org.ssgproject.content_profile_cis \
+                --results result.xml \
+                /usr/share/xml/scap/ssg/content/ssg-ubuntu2004-ds.xml"
+
+            # ------------------------
+            # Upload Report
+            # ------------------------
+            - name: Fetch Report
+              run: scp -i ~/.ssh/key.pem ubuntu@$IP:result.xml .
+
+            - name: Upload Artifact
+              uses: actions/upload-artifact@v3
+              with:
+                name: compliance-report
+                path: result.xml
+             
             - name: Terraform Destroy
               if: ${{ env.DESTROY == 'true' }}
               working-directory: terraform
               run: terraform destroy -var-file="dev.tfvars" -auto-approve
+            
