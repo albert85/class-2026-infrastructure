@@ -21,10 +21,10 @@ provider "aws" {
 }
 
 # -------------------------
-# Web Node Security Group
+# Bastion Node Security Group
 # -------------------------
 
-resource "aws_security_group" "ansible_sg" {
+resource "aws_security_group" "bastion_sg" {
 
   name        = "ansible-sg"
   description = "Allow SSH and Port 80  inbound, all outbound"
@@ -59,10 +59,45 @@ resource "aws_security_group" "ansible_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  # Allow all outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "web-security_group"
+  }
+
+}
+
+# -------------------------
+# Web Node Security Group
+# -------------------------
+
+resource "aws_security_group" "app_sg" {
+
+  name        = "app-sg"
+  description = "Allow SSH and Port 80  inbound, all outbound"
+  vpc_id      = var.project_vpc 
+
+
+  # inbound SSH
+
   ingress {
-    description = "Custom app port 8080"
-    from_port   = 9000
-    to_port     = 9000
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Custom app port 8000"
+    from_port   = 8000
+    to_port     = 8000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -86,15 +121,28 @@ resource "aws_security_group" "ansible_sg" {
 # ------------------------
 
 
-resource "aws_instance" "ansible-node" {
+resource "aws_instance" "bastion-node" {
   ami                    = var.project_ami
   instance_type          = var.project_instance_type
   subnet_id              = var.project_subnet
-  vpc_security_group_ids = [aws_security_group.ansible_sg.id]
+  vpc_security_group_ids = [aws_security_group.bastion_sg.id]
   key_name               =  var.project_keyname
 
   tags = {
-    Name = "ansible-node"
+    Name = "bastion-node"
+  }
+}
+
+
+resource "aws_instance" "app-node" {
+  ami                    = var.project_ami
+  instance_type          = var.project_instance_type
+  subnet_id              = var.project_subnet
+  vpc_security_group_ids = [aws_security_group.app_sg.id]
+  key_name               =  var.project_keyname
+
+  tags = {
+    Name = "app-node"
   }
 }
 
@@ -109,14 +157,7 @@ resource "aws_security_group" "rds_sg" {
     to_port     = 5432
     protocol    = "tcp"
     cidr_blocks = ["10.0.0.0/16"]
-  }
-
-  ingress {
-    description = "Postgres from anywhere (DEV ONLY)"
-    from_port   = 5432
-    to_port     = 5432
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    security_groups = [aws_security_group.app_sg.id]
   }
 
   egress {
@@ -155,6 +196,7 @@ resource "aws_db_instance" "postgres" {
 
   skip_final_snapshot = true
   deletion_protection = false
+  
 
   tags = {
     Name        = "free-tier-postgres"
@@ -173,5 +215,5 @@ resource "aws_db_instance" "postgres" {
 
 output "ansible_node_ip" {
   description = " Public IP"
-  value  = aws_instance.ansible-node.public_ip
+  value  = aws_instance.bastion-node.public_ip
 }
