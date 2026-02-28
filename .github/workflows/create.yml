@@ -50,8 +50,8 @@ jobs:
               if: ${{ env.DESTROY != 'true' }}
               run: |
                 # 1. Get the ALB DNS name from Terraform output
-                # Assumes you have an output named 'alb_dns_name' in your TF files
-                ALB_URL=$(cd terraform && terraform output -raw alb_dns_name)
+                # Assumes you have an output named 'alb_dns' in your TF files
+                ALB_URL=$(cd terraform && terraform output -raw alb_dns)
                 
                 # 2. Resolve DNS to IP (ALBs usually return multiple IPs; we'll take the first one)
                 ALB_IP=$(dig +short $ALB_URL | head -n1)
