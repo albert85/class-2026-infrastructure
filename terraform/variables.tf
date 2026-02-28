@@ -65,3 +65,12 @@ variable "rds_subnet_name" {
 variable "rds_name" {
   type = string
 }
+
+variable "admin_email" {
+  type = string
+}
+
+variable "domain_name" {
+    type = string
+  
+}
