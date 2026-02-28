@@ -74,3 +74,7 @@ variable "domain_name" {
     type = string
   
 }
+
+variable "duckdns_token" {
+  type = string
+}

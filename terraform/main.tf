@@ -17,7 +17,7 @@ terraform {
     }
     acme = {
       source  = "vancluever/acme"
-      version = "~> 2.0"
+      version = "~> 2.26" # Modern version to prevent serialization errors
     }
   }
 }
@@ -31,7 +31,7 @@ provider "acme" {
 }
 
 # -------------------------
-# 1. Let's Encrypt SSL (ACME)
+# 1. Let's Encrypt SSL (ACME) via DuckDNS
 # -------------------------
 resource "tls_private_key" "reg_key" {
   algorithm = "RSA"
@@ -44,12 +44,12 @@ resource "acme_registration" "reg" {
 
 resource "acme_certificate" "certificate" {
   account_key_pem = acme_registration.reg.account_key_pem
-  common_name     = var.domain_name # Using an existing var or replace with domain string
+  common_name     = var.domain_name # e.g., "my-app.duckdns.org"
   
   dns_challenge {
-    provider = "route53"
+    provider = "duckdns"
     config = {
-      AWS_REGION = "eu-north-1"
+      DUCKDNS_TOKEN = var.duckdns_token # Ensure this is in your variables.tf
     }
   }
 }
@@ -89,7 +89,7 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-# Bastion Security Group
+# Bastion Security Group (For Ansible Jump Host)
 resource "aws_security_group" "bastion_sg" {
   name        = "ansible-sg"
   description = "Allow SSH inbound"
@@ -111,7 +111,7 @@ resource "aws_security_group" "bastion_sg" {
   }
 }
 
-# App Security Group
+# App Security Group (Private)
 resource "aws_security_group" "app_sg" {
   name        = "app-sg"
   vpc_id      = var.project_vpc 
@@ -141,10 +141,10 @@ resource "aws_security_group" "app_sg" {
   }
 }
 
-# RDS Security Group
+# RDS Security Group (Private)
 resource "aws_security_group" "rds_sg" {
-  name        = var.rds_name
-  vpc_id      = var.project_vpc
+  name   = var.rds_name
+  vpc_id = var.project_vpc
   
   ingress {
     description     = "Postgres from App SG"
@@ -197,7 +197,7 @@ resource "aws_lb_listener" "https" {
 # 4. Instances
 # -------------------------
 
-# Bastion (Uses project_subnet as public entry)
+# Bastion (Public)
 resource "aws_instance" "bastion-node" {
   ami                    = var.project_ami
   instance_type          = var.project_instance_type
@@ -207,7 +207,7 @@ resource "aws_instance" "bastion-node" {
   tags                   = { Name = "bastion-node" }
 }
 
-# App Node (Uses project_aurora_subnet as the private/internal tier)
+# App Node (Private)
 resource "aws_instance" "app-node" {
   ami                    = var.project_ami
   instance_type          = var.project_instance_type
@@ -224,7 +224,7 @@ resource "aws_lb_target_group_attachment" "app_attachment" {
 }
 
 # -------------------------
-# 5. RDS Database
+# 5. RDS Database (Private)
 # -------------------------
 resource "aws_db_subnet_group" "rds_subnet" {
   name       = var.rds_subnet_name
@@ -242,7 +242,7 @@ resource "aws_db_instance" "postgres" {
   password               = var.db_password
   db_subnet_group_name   = aws_db_subnet_group.rds_subnet.name
   vpc_security_group_ids = [aws_security_group.rds_sg.id]
-  publicly_accessible    = false # Corrected for security
+  publicly_accessible    = false 
   skip_final_snapshot    = true
   tags                   = { Name = "free-tier-postgres" }
 }
@@ -256,4 +256,8 @@ output "alb_dns" {
 
 output "ansible_node_ip" {
   value = aws_instance.bastion-node.public_ip
+}
+
+output "app_private_ip" {
+  value = aws_instance.app-node.private_ip
 }
