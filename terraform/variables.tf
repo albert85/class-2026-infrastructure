@@ -78,3 +78,7 @@ variable "domain_name" {
 variable "duckdns_token" {
   type = string
 }
+
+variable "project_aurora_private_subnet" {
+    type = string  
+}

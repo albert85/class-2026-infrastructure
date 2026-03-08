@@ -170,7 +170,7 @@ resource "aws_lb" "main_alb" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = [var.project_subnet, var.project_aurora_subnet] 
+  subnets            = [var.project_subnet, var.project_aurora_private_subnet] 
 }
 
 resource "aws_lb_target_group" "app_tg" {
@@ -211,7 +211,7 @@ resource "aws_instance" "bastion-node" {
 resource "aws_instance" "app-node" {
   ami                    = var.project_ami
   instance_type          = var.project_instance_type
-  subnet_id              = var.project_aurora_subnet
+  subnet_id              = var.project_aurora_private_subnet
   vpc_security_group_ids = [aws_security_group.app_sg.id]
   key_name               = var.project_keyname
   tags                   = { Name = "app-node" }
@@ -228,7 +228,7 @@ resource "aws_lb_target_group_attachment" "app_attachment" {
 # -------------------------
 resource "aws_db_subnet_group" "rds_subnet" {
   name       = var.rds_subnet_name
-  subnet_ids = [var.project_subnet, var.project_aurora_subnet]
+  subnet_ids = [var.project_subnet, var.project_aurora_private_subnet]
 }
 
 resource "aws_db_instance" "postgres" {
